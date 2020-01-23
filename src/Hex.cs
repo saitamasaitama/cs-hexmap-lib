@@ -3,6 +3,7 @@ using System.Text;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
+//using System.Math;
 
 public static class Debug
 {
@@ -33,7 +34,32 @@ public struct HexPos
     var hex = (HexPos)o;
 
     return this.x == hex.x && this.y == hex.y;
+  }
 
+  public static HexPos operator * (HexPos h,int x){
+    return HexPos.From(h.x*x,h.y*x);
+  }
+
+  public static int Distance(HexPos A,HexPos B){
+    //まずA,Bをそれぞれ2倍にする
+    HexPos a =A*2;
+    HexPos b =B*2;
+    //Yが奇数だった場合にそれぞれのXに+1する
+    a.x+= (A.y % 2 == 1 )?1:0;
+    b.x+= (B.y % 2 == 1 )?1:0;
+
+    int ydiff = Math.Abs( a.y - b.y );
+    //int ydiff = 0;
+
+    //Xの距離は diff Y *    
+
+    int range = (
+            Math.Abs(a.x - b.x)
+          + Math.Abs(a.y - b.y)
+          - (ydiff / 2)
+          )/2;
+   // Console.WriteLine($"[ {a.x},{a.y} ] [ {b.x},{b.y} ] =RANGE {range} ");
+    return range;
   }
 }
 
@@ -85,7 +111,39 @@ public class HexMap : Dictionary<HexPos, int>
     this.size = size;
   }
 
-  public List<HexPos> getRange(HexPos from, int range = 1, List<HexPos> result = null)
+  //障害物関係なく単純に面を取得する
+  public static List<HexPos> GetRangeAll(HexPos from, int range, List<HexPos> result = null)
+  {
+    //YはRangeにしたがう
+    //XはRange/2 が加算される
+    //
+    return
+    Enumerable.Range(-range, range * 2 + 1).Select(y =>
+    Enumerable.Range(-range, range * 2 + 1).Select(x =>
+        HexPos.From(from.x + x, from.y + y)
+      ).Where(
+        pos=> HexPos.Distance(pos,from) <= range
+      )
+      .ToList()
+    ).Aggregate(
+      new List<HexPos>(),
+      (carry, item) =>
+    {
+      carry.AddRange(item);
+      return carry;
+    }
+    ).ToList();
+
+  }
+
+  public List<HexPos> getRange(HexPos from, int range = 2, List<HexPos> result = null)
+  {
+    result = GetRangeAll(from, range);
+    result.Remove(from);
+    return result;
+  }
+
+  public List<HexPos> getRangeAster(HexPos from, int range = 1, List<HexPos> result = null)
   {
     if (result == null) result = new List<HexPos>();
     HexPos
@@ -156,10 +214,9 @@ public class HexRenderer
 {
 
   public HexMap source;
-  public Cursor cursor = Cursor.From(2, 2);
+  public Cursor cursor = Cursor.From(3, 3);
 
-  public override string ToString()
-  {
+  public string LargeMap(){
     var sb = new StringBuilder();
     for (int y = 0; y < source.size.y; y++)
     {
@@ -177,37 +234,62 @@ public class HexRenderer
     return sb.ToString();
   }
 
+
+  public string MiniMap(){
+    var sb = new StringBuilder();
+    for (int y = 0; y < source.size.y; y++)
+    {
+      //Yが奇数のときは1ずらす
+      if (y % 2 == 1)
+      {
+        sb.Append("_");
+      }
+      for (int x = 0; x < source.size.x; x++)
+      {
+        sb.Append($"|_");
+      }
+      sb.Append("|\n");
+    }
+    return sb.ToString();
+  }
+
+  public void MinimapRender(){
+    Console.Write(MiniMap());
+    //自身を書き込む
+    Console.SetCursorPosition((cursor.x * 2) + 1 + (cursor.y % 2 == 1 ? 1 : 0), cursor.y);
+    Console.BackgroundColor = ConsoleColor.Blue;
+    Console.Write("*");
+    Console.ResetColor();
+    //範囲を書き込み
+    foreach (HexPos p in 
+        this.source.getRange(cursor, 3)
+        .Where(hp=>
+          0 <= hp.x && 0 <= hp.y &&
+          hp.x < Console.BufferWidth && hp.y < Console.BufferWidth 
+          )
+        )
+    {
+      Console.SetCursorPosition(
+          (p.x * 2) + 1 + (p.y % 2 == 1 ? 1 : 0),
+          p.y
+      );
+      Console.BackgroundColor = ConsoleColor.Red;
+      Console.Write("_");
+      Console.ResetColor();
+    }
+  }
+
   public void Start()
   {
     //カーソルを描画する
-
     while (true)
     {
       Console.Clear();
-      Console.Write(this);
-
-      Console.SetCursorPosition((cursor.x * 4) + 2 + (cursor.y % 2 == 1 ? 2 : 0), cursor.y);
-      Console.BackgroundColor = ConsoleColor.Blue;
-      Console.Write("*");
-      Console.ResetColor();
-      //範囲を書き込み
-      foreach (HexPos p in this.source.getRange(cursor, 6))
-      {
-        //     Console.WriteLine($"<{p.x}-{p.y}>");
-        Console.SetCursorPosition(
-            (p.x * 4) + 1 + (p.y % 2 == 1 ? 2 : 0),
-            p.y
-        );
-        Console.BackgroundColor = ConsoleColor.Red;
-        Console.Write("___");
-        Console.ResetColor();
-      }
-
+      this.MinimapRender();
 
       Console.SetCursorPosition(0, 30);
-
+      //キー入力　ここから
       var k = Console.ReadKey(true);
-
       switch (k.Key)
       {
         case ConsoleKey.UpArrow: cursor.y--; break;
@@ -216,6 +298,7 @@ public class HexRenderer
         case ConsoleKey.DownArrow: cursor.y++; break;
         default: break;
       }
+      //キー入力　ここまで
     }
   }
 }
