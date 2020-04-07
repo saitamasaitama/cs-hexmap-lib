@@ -36,29 +36,29 @@ public struct HexPos
     return this.x == hex.x && this.y == hex.y;
   }
 
-  public static HexPos operator * (HexPos h,int x){
-    return HexPos.From(h.x*x,h.y*x);
+  public static HexPos operator *(HexPos h, int x)
+  {
+    return HexPos.From(h.x * x, h.y * x);
   }
 
-  public static int Distance(HexPos A,HexPos B){
+  public static int Distance(HexPos A, HexPos B)
+  {
     //まずA,Bをそれぞれ2倍にする
-    HexPos a =A*2;
-    HexPos b =B*2;
+    HexPos a = A * 2;
+    HexPos b = B * 2;
     //Yが奇数だった場合にそれぞれのXに+1する
-    a.x+= (A.y % 2 == 1 )?1:0;
-    b.x+= (B.y % 2 == 1 )?1:0;
+    a.x += (A.y % 2 == 1) ? 1 : 0;
+    b.x += (B.y % 2 == 1) ? 1 : 0;
 
-    int ydiff = Math.Abs( a.y - b.y );
+    int ydiff = Math.Abs(a.y - b.y);
     //int ydiff = 0;
 
     //Xの距離は diff Y *    
-
     int range = (
             Math.Abs(a.x - b.x)
           + Math.Abs(a.y - b.y)
           - (ydiff / 2)
-          )/2;
-   // Console.WriteLine($"[ {a.x},{a.y} ] [ {b.x},{b.y} ] =RANGE {range} ");
+          ) / 2;
     return range;
   }
 }
@@ -67,7 +67,6 @@ public struct Size
 {
   public int x;
   public int y;
-
   public static Size From(int x, int y)
   {
     return new Size()
@@ -90,22 +89,43 @@ public struct Cursor
       y = y
     };
   }
-
   public static implicit operator HexPos(Cursor c)
   {
     return HexPos.From(c.x, c.y);
   }
 }
 
-public struct HexIcon
-{
-  public string icon;
 
-}
 
+/*
+ * 移動コストのマップ
+ * */
 public class HexMap : Dictionary<HexPos, int>
 {
   public Size size;
+
+  public static HexMap Random()
+  {
+    Size s = Size.From(15, 15);
+
+    HexMap h = new HexMap(s);
+    Random r = new Random();
+
+    //ランダム
+
+    for (int i = 0; i < 100; i++)
+    {
+      int x = r.Next(0, 15);
+      int y = r.Next(0, 15);
+      HexPos pos = HexPos.From(x, y);
+
+      h[pos]++;
+
+    }
+
+    return h;
+
+  }
   public HexMap(Size size)
   {
     this.size = size;
@@ -122,7 +142,7 @@ public class HexMap : Dictionary<HexPos, int>
     Enumerable.Range(-range, range * 2 + 1).Select(x =>
         HexPos.From(from.x + x, from.y + y)
       ).Where(
-        pos=> HexPos.Distance(pos,from) <= range
+        pos => HexPos.Distance(pos, from) <= range
       )
       .ToList()
     ).Aggregate(
@@ -133,75 +153,61 @@ public class HexMap : Dictionary<HexPos, int>
       return carry;
     }
     ).ToList();
-
   }
 
-  public List<HexPos> getRange(HexPos from, int range = 2, List<HexPos> result = null)
+
+  public List<HexPos> getRange(HexPos from, int range = 2, Dictionary<HexPos, int> costs = null)
+  {
+    return HexMap.GetRangeAll(from, range);
+
+
+    if (costs == null) costs = new Dictionary<HexPos, int>();
+
+    //コストを計算して、オーバーするなら終了
+    range -= this[from];
+
+    if (range < 0) return costs.Keys.ToList();
+    /*
+        HexPos
+          L = HexPos.From(from.x - 1, from.y),
+          R = HexPos.From(from.x + 1, from.y),
+          UL = HexPos.From(from.y % 2 == 1 ? from.x : from.x - 1, from.y - 1),
+          UR = HexPos.From(from.y % 2 == 1 ? from.x + 1 : from.x, from.y - 1),
+          DL = HexPos.From(from.y % 2 == 1 ? from.x : from.x - 1, from.y + 1),
+          DR = HexPos.From(from.y % 2 == 1 ? from.x + 1 : from.x, from.y + 1)
+        ;
+        //
+        //6方向呼び出し
+        getRange(L,range,costs);
+        getRange(L,range,costs);
+        getRange(L,range,costs);
+        getRange(L,range,costs);
+        getRange(L,range,costs);
+        getRange(L,range,costs);
+    */
+    return costs.Keys.ToList();
+  }
+
+  public List<HexPos> getRangeX(HexPos from, int range = 2, List<HexPos> result = null)
   {
     result = GetRangeAll(from, range);
+
+    //最初の地点を削除
     result.Remove(from);
     return result;
   }
 
-  public List<HexPos> getRangeAster(HexPos from, int range = 1, List<HexPos> result = null)
-  {
-    if (result == null) result = new List<HexPos>();
-    HexPos
-      L = HexPos.From(from.x - 1, from.y),
-      R = HexPos.From(from.x + 1, from.y),
-      UL = HexPos.From(from.y % 2 == 1 ? from.x : from.x - 1, from.y - 1),
-      UR = HexPos.From(from.y % 2 == 1 ? from.x + 1 : from.x, from.y - 1),
-      DL = HexPos.From(from.y % 2 == 1 ? from.x : from.x - 1, from.y + 1),
-      DR = HexPos.From(from.y % 2 == 1 ? from.x + 1 : from.x, from.y + 1)
-    ;
-
-    List<HexPos> way =
-    (new List<HexPos>(){
-      L,//左
-      R,//右
-      UL,//上
-      UR,//上
-      //下二つ
-      DL,
-      DR,
-    }).Where(
-          p =>
-            !result.Exists(a => a.x == p.x && a.y == p.y) //既存でないか判定
-            && (0 <= p.y && p.y < size.y && 0 <= p.x && p.x <= size.x)  //範囲内判定
-    ).ToList();
-
-    result.AddRange(way);
-    if (0 < --range)
-    {
-      //6方向
-      //result.AddRange(getRange(L, range, result.Distinct().ToList()).Where(p => result.Exists(r => r.Equals(p))));
-      result.AddRange(getRange(L, range, result).Where(p => !result.Exists(r => r.Equals(p))));
-      result.AddRange(getRange(R, range, result).Where(p => !result.Exists(r => r.Equals(p))));
-      result.AddRange(getRange(UL, range, result).Where(p => !result.Exists(r => r.Equals(p))));
-      result.AddRange(getRange(UR, range, result).Where(p => !result.Exists(r => r.Equals(p))));
-      result.AddRange(getRange(DL, range, result).Where(p => !result.Exists(r => r.Equals(p))));
-      result.AddRange(getRange(DR, range, result).Where(p => !result.Exists(r => r.Equals(p))));
-    }
-    //重複は削除
-
-    //var before = result.Count;
-    result = result.Distinct().ToList();
-    //var after = result.Count;
-
-    //Debug.Log($"FROM {before} -> {after} ");
-    //自分は削除
-    result.RemoveAll(a => a.Equals(from));
-
-    return result;
-  }
-
-
-  //特に意味は無い。表示用
-  public string this[HexPos x]
+  public int this[HexPos p]
   {
     get
     {
-      return this.ContainsKey(x) ? "__" : "..";
+      if (!base.ContainsKey(p)) base.Add(p, 0);
+      return base[p];
+    }
+    set
+    {
+      if (!base.ContainsKey(p)) base.Add(p, value);
+      base[p] = value;
     }
   }
 }
@@ -216,7 +222,8 @@ public class HexRenderer
   public HexMap source;
   public Cursor cursor = Cursor.From(3, 3);
 
-  public string LargeMap(){
+  public string LargeMap()
+  {
     var sb = new StringBuilder();
     for (int y = 0; y < source.size.y; y++)
     {
@@ -227,7 +234,16 @@ public class HexRenderer
       }
       for (int x = 0; x < source.size.x; x++)
       {
-        sb.Append($"|_{source[HexPos.From(x, y)]}");
+        string tile = source[HexPos.From(x, y)] switch
+        {
+          0 => "_",
+          1 => ",",
+          2 => "*",
+          3 => "#",
+          _ => "-"
+        };
+
+        sb.Append($"|{tile}");
       }
       sb.Append("|\n");
     }
@@ -235,7 +251,8 @@ public class HexRenderer
   }
 
 
-  public string MiniMap(){
+  public string MiniMap()
+  {
     var sb = new StringBuilder();
     for (int y = 0; y < source.size.y; y++)
     {
@@ -246,14 +263,26 @@ public class HexRenderer
       }
       for (int x = 0; x < source.size.x; x++)
       {
-        sb.Append($"|_");
+
+        string tile = source[HexPos.From(x, y)] switch
+        {
+          0 => "_",
+          1 => ",",
+          2 => "*",
+          3 => "#",
+          _ => "-"
+        };
+
+
+        sb.Append($"|{tile}");
       }
       sb.Append("|\n");
     }
     return sb.ToString();
   }
 
-  public void MinimapRender(){
+  public void MinimapRender()
+  {
     Console.Write(MiniMap());
     //自身を書き込む
     Console.SetCursorPosition((cursor.x * 2) + 1 + (cursor.y % 2 == 1 ? 1 : 0), cursor.y);
@@ -261,11 +290,11 @@ public class HexRenderer
     Console.Write("*");
     Console.ResetColor();
     //範囲を書き込み
-    foreach (HexPos p in 
+    foreach (HexPos p in
         this.source.getRange(cursor, 3)
-        .Where(hp=>
+        .Where(hp =>
           0 <= hp.x && 0 <= hp.y &&
-          hp.x < Console.BufferWidth && hp.y < Console.BufferWidth 
+          hp.x < Console.BufferWidth && hp.y < Console.BufferWidth
           )
         )
     {
@@ -279,26 +308,4 @@ public class HexRenderer
     }
   }
 
-  public void Start()
-  {
-    //カーソルを描画する
-    while (true)
-    {
-      Console.Clear();
-      this.MinimapRender();
-
-      Console.SetCursorPosition(0, 30);
-      //キー入力　ここから
-      var k = Console.ReadKey(true);
-      switch (k.Key)
-      {
-        case ConsoleKey.UpArrow: cursor.y--; break;
-        case ConsoleKey.LeftArrow: cursor.x--; break;
-        case ConsoleKey.RightArrow: cursor.x++; break;
-        case ConsoleKey.DownArrow: cursor.y++; break;
-        default: break;
-      }
-      //キー入力　ここまで
-    }
-  }
 }
